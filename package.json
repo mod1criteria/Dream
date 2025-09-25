@@ -1,11 +1,11 @@
 {
   "name": "dream",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "main.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/main.js"
   },
   "repository": {
     "type": "git",
