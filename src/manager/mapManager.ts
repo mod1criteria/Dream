@@ -6,22 +6,22 @@ export class MapManager {
     private maps: Map[] = [];
     private nextMapId: number = 0;
 
-
     constructor() {
         console.log("MapManager initialized.");
     }
 
     public createMap(size: MapSizeType): void {
-        this.maps.push(new Map(this.nextMapId++, size));
+        const map = new Map(this.nextMapId++, size);
+        this.maps.push(map);
+        map.visualize();
     }
     
     public sponCharacter(character: Character) {
-        let map: Map | undefined = this.maps.find(map => map.size === MapSizeType.Village); // 추 후 스폰 맵 찾는 로직 구현
-        if(!map) {
+        const map: Map | undefined = this.maps.find((candidate) => candidate.size === MapSizeType.Village);
+        if (!map) {
             console.error("No map found for character spawn.");
             return;
         }
-        // 맵에 캐릭터 스폰 로직 구현
         character.setMapId(map.mapId);
         console.log(`Character spawned on map ${map.name}.`);
     }
