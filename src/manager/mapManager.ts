@@ -22,7 +22,15 @@ export class MapManager {
             console.error("No map found for character spawn.");
             return;
         }
+
         character.setMapId(map.mapId);
-        console.log(`Character spawned on map ${map.name}.`);
+        const position = map.placeCharacter(character.getId());
+        if (!position) {
+            console.error(`No room left on map ${map.name} for character ${character.getId()}.`);
+            return;
+        }
+        character.setPosition(position);
+        console.log(`Character spawned on map ${map.name} at (${position.x}, ${position.y}).`);
+        map.visualize();
     }
 }
