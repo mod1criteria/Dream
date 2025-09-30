@@ -8,13 +8,13 @@ export enum MapSizeType {
 }
 
 export enum MapObjectType {
-    Plain,
-    Forest,
-    Building,
-    Road,
-    Park,
-    WaterBody,
-    Landmark,
+    Plain, //평지
+    Forest, //숲
+    Building, //건물
+    Road, //도로
+    Park, //공원
+    WaterBody, //수역
+    Landmark, //랜드마크
 }
 
 export type MapDimensions = {

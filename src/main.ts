@@ -4,7 +4,7 @@ import { CharacterManager } from "./manager/characterManager.js";
 import { MapManager } from "./manager/mapManager.js";
 import { MapSizeType } from "./map/config.js";
 
-const TICKS_PER_SECOND = 1; // 1초에 한 턴으로 속도 조절
+const TICKS_PER_SECOND = 1;
 
 class Dream {
     private lastTickTime: number;
@@ -23,11 +23,9 @@ class Dream {
     public start() {
         console.log("GameStart");
 
-        // 초기 맵과 캐릭터 생성
-        this.mapManager.createMap(MapSizeType.Village);
-        for (let i = 0; i < 3; i++)
-        {
-            let character: Character = this.characterManager.createCharacter();
+        this.mapManager.createMap(MapSizeType.Megacity);
+        for (let i = 0; i < 3; i++) {
+            const character: Character = this.characterManager.createCharacter();
             this.mapManager.sponCharacter(character);
         }
         this.ticker = setInterval(() => this.tick(), 1000 / TICKS_PER_SECOND);
@@ -48,9 +46,8 @@ class Dream {
     }
 
     private update() {
-        // 매 턴마다 이벤트를 발생시켜 CharacterManager가 수신하도록 함
         gameEvents.emit('turn');
     }
 }
 
-new Dream().start(); // start() 메소드를 호출하여 게임을 시작
+new Dream().start();

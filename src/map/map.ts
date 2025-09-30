@@ -5,11 +5,26 @@ export type MapCoordinate = {
     y: number;
 };
 
-const MAP_OBJECT_VALUES: MapObjectType[] = Object.values(MapObjectType).filter(
-    (value): value is MapObjectType => typeof value === 'number',
-);
+export type MapObjectSize = {
+    width: number;
+    height: number;
+};
+
+export class MapObject {
+    constructor(
+        public readonly id: number,
+        public readonly mapId: number,
+        public readonly type: MapObjectType,
+        public readonly size: MapObjectSize,
+        public readonly origin: MapCoordinate,
+        public readonly entrance: MapCoordinate,
+        public readonly exit: MapCoordinate,
+    ) {}
+}
 
 const coordinateKey = (x: number, y: number): string => `${x},${y}`;
+
+const isValidIndex = (rowLength: number, index: number): boolean => index >= 0 && index < rowLength;
 
 export class Map {
     public readonly size: MapSizeType;
@@ -22,6 +37,8 @@ export class Map {
     private occupied: boolean[][];
     private characterLocations: globalThis.Map<number, MapCoordinate>;
     private occupiedByCoordinate: globalThis.Map<string, number>;
+    private mapObjects: MapObject[] = [];
+    private spawnPoints: MapCoordinate[] = [];
 
     constructor(mapId: number, size: MapSizeType) {
         this.mapId = mapId;
@@ -30,11 +47,16 @@ export class Map {
         this.width = width;
         this.height = height;
         this.name = this.generateMapName(size);
-        this.layout = this.generateLayout();
+        this.layout = this.generateEmptyLayout();
         this.occupied = this.createOccupancyGrid();
         this.characterLocations = new globalThis.Map();
         this.occupiedByCoordinate = new globalThis.Map();
+        this.initialiseCentralObject();
         console.log(`Map "${this.name}" of size ${MapSizeType[this.size]} has been created.`);
+    }
+
+    private generateEmptyLayout(): MapObjectType[][] {
+        return Array.from({ length: this.height }, () => Array.from({ length: this.width }, () => MapObjectType.Plain));
     }
 
     private createOccupancyGrid(): boolean[][] {
@@ -56,41 +78,108 @@ export class Map {
         return dimensions;
     }
 
-    private generateLayout(): MapObjectType[][] {
-        const rows: MapObjectType[][] = [];
-        for (let y = 0; y < this.height; y++) {
-            const row: MapObjectType[] = [];
-            for (let x = 0; x < this.width; x++) {
-                row.push(this.pickRandomObject());
+    private isInBounds(x: number, y: number): boolean {
+        return x >= 0 && x < this.width && y >= 0 && y < this.height;
+    }
+
+    private initialiseCentralObject(): void {
+        const objectSize: MapObjectSize = { width: 4, height: 4 };
+        const centerX = Math.floor(this.width / 2);
+        const centerY = Math.floor(this.height / 2);
+        const originX = Math.max(1, Math.min(this.width - objectSize.width - 2, centerX - Math.floor(objectSize.width / 2)));
+        const originY = Math.max(1, Math.min(this.height - objectSize.height - 2, centerY - Math.floor(objectSize.height / 2)));
+        const origin: MapCoordinate = { x: originX, y: originY };
+
+        for (let offsetY = 0; offsetY < objectSize.height; offsetY++) {
+            for (let offsetX = 0; offsetX < objectSize.width; offsetX++) {
+                const tileX = originX + offsetX;
+                const tileY = originY + offsetY;
+                if (!this.isInBounds(tileX, tileY)) {
+                    continue;
+                }
+                const layoutRow = this.layout[tileY];
+                const occupiedRow = this.occupied[tileY];
+                if (layoutRow && occupiedRow && isValidIndex(layoutRow.length, tileX) && isValidIndex(occupiedRow.length, tileX)) {
+                    layoutRow[tileX] = MapObjectType.Building;
+                    occupiedRow[tileX] = true;
+                }
             }
-            rows.push(row);
         }
-        return rows;
+
+        const doorwayOffsetY = originY + Math.floor(objectSize.height / 2);
+        const entrance: MapCoordinate = { x: originX - 1, y: doorwayOffsetY };
+        const exit: MapCoordinate = { x: originX + objectSize.width, y: doorwayOffsetY };
+
+        this.setRoadTile(entrance);
+        this.setRoadTile(exit);
+
+        const additionalSpawnCandidates: MapCoordinate[] = [
+            exit,
+            { x: exit.x + 1, y: exit.y },
+            { x: exit.x + 2, y: exit.y },
+            { x: exit.x, y: exit.y - 1 },
+            { x: exit.x, y: exit.y + 1 },
+        ];
+
+        const spawnPoints: MapCoordinate[] = [];
+        for (const candidate of additionalSpawnCandidates) {
+            if (!this.isInBounds(candidate.x, candidate.y)) {
+                continue;
+            }
+            spawnPoints.push(candidate);
+            this.setRoadTile(candidate);
+        }
+
+        this.spawnPoints = spawnPoints;
+        const mapObject = new MapObject(0, this.mapId, MapObjectType.Building, objectSize, origin, entrance, exit);
+        this.mapObjects.push(mapObject);
     }
 
-    private pickRandomObject(): MapObjectType {
-        const index = Math.floor(Math.random() * MAP_OBJECT_VALUES.length);
-        const tile = MAP_OBJECT_VALUES[index];
-        if (tile === undefined) {
-            return MapObjectType.Plain;
+    private setRoadTile(coordinate: MapCoordinate): void {
+        if (!this.isInBounds(coordinate.x, coordinate.y)) {
+            return;
         }
-        return tile;
+        const row = this.layout[coordinate.y];
+        if (row && isValidIndex(row.length, coordinate.x)) {
+            row[coordinate.x] = MapObjectType.Road;
+        }
     }
 
-    public placeCharacter(characterId: number): MapCoordinate | null {
-        const position = this.findSpawnPosition();
-        if (!position) {
-            return null;
-        }
-        const key = coordinateKey(position.x, position.y);
+    private markOccupied(position: MapCoordinate, characterId: number): void {
         const occupiedRow = this.occupied[position.y];
-        if (!occupiedRow) {
-            return null;
+        if (!occupiedRow || !isValidIndex(occupiedRow.length, position.x)) {
+            return;
         }
         occupiedRow[position.x] = true;
         this.characterLocations.set(characterId, position);
-        this.occupiedByCoordinate.set(key, characterId);
-        return position;
+        this.occupiedByCoordinate.set(coordinateKey(position.x, position.y), characterId);
+    }
+
+    private clearOccupied(position: MapCoordinate): void {
+        const occupiedRow = this.occupied[position.y];
+        if (!occupiedRow || !isValidIndex(occupiedRow.length, position.x)) {
+            return;
+        }
+        occupiedRow[position.x] = false;
+        this.occupiedByCoordinate.delete(coordinateKey(position.x, position.y));
+    }
+
+    private isTileFree(x: number, y: number): boolean {
+        const occupiedRow = this.occupied[y];
+        if (!occupiedRow || !isValidIndex(occupiedRow.length, x)) {
+            return false;
+        }
+        return !occupiedRow[x];
+    }
+
+    public placeCharacterAtSpawnPoint(characterId: number): MapCoordinate | null {
+        for (const spawnPoint of this.spawnPoints) {
+            if (this.isTileFree(spawnPoint.x, spawnPoint.y)) {
+                this.markOccupied(spawnPoint, characterId);
+                return spawnPoint;
+            }
+        }
+        return null;
     }
 
     public removeCharacter(characterId: number): void {
@@ -99,45 +188,19 @@ export class Map {
             return;
         }
         this.characterLocations.delete(characterId);
-        const key = coordinateKey(position.x, position.y);
-        this.occupiedByCoordinate.delete(key);
-        const occupiedRow = this.occupied[position.y];
-        if (!occupiedRow) {
-            return;
-        }
-        occupiedRow[position.x] = false;
+        this.clearOccupied(position);
     }
 
     public getCharacterPosition(characterId: number): MapCoordinate | undefined {
         return this.characterLocations.get(characterId);
     }
 
-    private findSpawnPosition(): MapCoordinate | null {
-        const maxAttempts = this.width * this.height;
-        const tried = new globalThis.Set<string>();
-        for (let attempts = 0; attempts < maxAttempts; attempts++) {
-            const x = Math.floor(Math.random() * this.width);
-            const y = Math.floor(Math.random() * this.height);
-            const key = coordinateKey(x, y);
-            if (tried.has(key)) {
-                continue;
-            }
-            tried.add(key);
-            const occupiedRow = this.occupied[y];
-            if (occupiedRow && !occupiedRow[x]) {
-                return { x, y };
-            }
-        }
+    public getObjects(): readonly MapObject[] {
+        return this.mapObjects;
+    }
 
-        for (let y = 0; y < this.height; y++) {
-            const occupiedRow = this.occupied[y];
-            for (let x = 0; x < this.width; x++) {
-                if (occupiedRow && !occupiedRow[x]) {
-                    return { x, y };
-                }
-            }
-        }
-        return null;
+    public getSpawnPoints(): readonly MapCoordinate[] {
+        return this.spawnPoints;
     }
 
     public visualize(): void {

@@ -17,16 +17,16 @@ export class MapManager {
     }
     
     public sponCharacter(character: Character) {
-        const map: Map | undefined = this.maps.find((candidate) => candidate.size === MapSizeType.Village);
+        const map: Map | undefined = this.maps.find((candidate) => candidate.size === MapSizeType.Megacity);
         if (!map) {
             console.error("No map found for character spawn.");
             return;
         }
 
         character.setMapId(map.mapId);
-        const position = map.placeCharacter(character.getId());
+        const position = map.placeCharacterAtSpawnPoint(character.getId());
         if (!position) {
-            console.error(`No room left on map ${map.name} for character ${character.getId()}.`);
+            console.error(`No room left near the exit on map ${map.name} for character ${character.getId()}.`);
             return;
         }
         character.setPosition(position);
